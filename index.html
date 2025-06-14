@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>딥다이브 몰입 루틴</title>
+<style>
+body {
+font-family: sans-serif;
+padding: 2rem;
+}
+#authForm, #contentArea {
+max-width: 500px;
+margin: 0 auto;
+}
+input {
+width: 100%;
+margin-bottom: 0.3rem;
+padding: 0.5rem;
+font-size: 1rem;
+}
+.input-guide {
+font-size: 0.8rem;
+color: #666;
+margin-bottom: 1rem;
+}
+button {
+padding: 0.5rem 1rem;
+font-size: 1rem;
+}
+#contentArea {
+display: none;
+}
+#errorMessage {
+color: red;
+margin-top: 1rem;
+font-size: 0.9rem;
+display: none;
+}
+</style>
+</head>
+<body>
+<h1>딥다이브 몰입 루틴</h1>
+
+<div id="authForm">
+<input type="text" id="userCodeInput" placeholder="유저 코드 입력" required />
+<div class="input-guide">🔒 4자 이상 입력해야 합니다.</div>
+<input type="text" id="subCode" placeholder="구독 코드 입력 (선택)" />
+<div class="input-guide">✨ 예: X2AZ-8Q7P, Q8YJ-72GR 등</div>
+<button id="submitBtn" disabled>시작하기</button>
+<div id="errorMessage"></div>
+</div>
+
+<div id="contentArea">
+<iframe id="tallyForm" width="100%" height="700px" frameborder="0"></iframe>
+</div>
+
+<script>
+function updateIframeBySubscription() {
+const expireDate = localStorage.getItem("subExpire");
+const nowDate = new Date();
+const isSubscribed = expireDate && new Date(expireDate) > nowDate;
+const userCode = localStorage.getItem("userCode");
+
+const baseURL = isSubscribed
+? "https://tally.so/r/with-question-form"
+: "https://tally.so/r/goal-only-form";
+
+const tallyURL = `${baseURL}?userCode=${encodeURIComponent(userCode)}`;
+document.getElementById("tallyForm").src = tallyURL;
+}
+
+function validateInputs() {
+const userCode = document.getElementById("userCodeInput").value.trim();
+const isUserCodeValid = userCode.length >= 4;
+document.getElementById("submitBtn").disabled = !isUserCodeValid;
+}
+
+function showError(message) {
+const errorDiv = document.getElementById("errorMessage");
+errorDiv.innerText = message;
+errorDiv.style.display = "block";
+}
+
+window.addEventListener("DOMContentLoaded", function () {
+const userCodeInput = document.getElementById("userCodeInput");
+const subCodeInput = document.getElementById("subCode");
+const submitBtn = document.getElementById("submitBtn");
+
+const savedUserCode = localStorage.getItem("userCode");
+if (savedUserCode) {
+document.getElementById("authForm").style.display = "none";
+document.getElementById("contentArea").style.display = "block";
+updateIframeBySubscription();
+}
+
+userCodeInput.addEventListener("input", validateInputs);
+
+submitBtn.addEventListener("click", function () {
+const userCode = userCodeInput.value.trim();
+const subCode = subCodeInput.value.trim().toUpperCase();
+const postData = {
+  userCode: userCode,
+  subCode: subCode
+};
+
+fetch("https://script.google.com/macros/s/AKfycbyNsAg6upXUKvERIz0mPPb_5KUR05Kbca_uzs1e9ZZjedFsLyUdQx_ocPWYQNMzXHxUhQ/exec", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(postData)
+})
+.then(res => res.json())
+.then(result => {
+  console.log("✅ 서버 응답:", result);
+
+  if (result.status === "VALID" || result.status === "BASIC") {
+    localStorage.setItem("userCode", userCode);
+
+    if (result.status === "VALID" && result.expire) {
+      localStorage.setItem("subExpire", result.expire);
+    } else {
+      localStorage.removeItem("subExpire");
+    }
+
+    document.getElementById("authForm").style.display = "none";
+    document.getElementById("contentArea").style.display = "block";
+    updateIframeBySubscription();
+  } else if (result.status === "USED") {
+    showError("⚠️ 이미 사용된 구독 코드입니다.");
+  } else if (result.status === "INVALID") {
+    showError("🚫 유효하지 않은 구독 코드입니다.");
+  } else {
+    showError("⚠️ 서버 오류가 발생했습니다.");
+  }
+})
+.catch(err => {
+  console.error("❌ 서버 오류:", err);
+  alert("서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.");
+});
+});
+});
+</script>
+</body>
+</html>
